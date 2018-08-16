@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 import itertools
 import logging
+import operator
 import urlparse
 
 from mopidy import models
@@ -23,9 +24,9 @@ logger = logging.getLogger(__name__)
 # TODO: Merge some/all of this into WebSession
 def get_images(web_session, uris):
     result = {}
-    wl_get_type = lambda x: x.type
-    weblinks = sorted((parse_uri(u) for u in uris), key=wl_get_type)
-    for uri_type, group in itertools.groupby(weblinks, wl_get_type):
+    wl_type_getter = operator.attrgetter('type')
+    weblinks = sorted((parse_uri(u) for u in uris), key=wl_type_getter)
+    for uri_type, group in itertools.groupby(weblinks, wl_type_getter):
         batch = []
         for weblink in group:
             if weblink.id in _cache:
