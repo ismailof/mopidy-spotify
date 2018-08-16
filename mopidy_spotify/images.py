@@ -2,10 +2,10 @@ from __future__ import unicode_literals
 
 import itertools
 import logging
-import operator
 import urlparse
 
 from mopidy import models
+from mopidy_spotify.web import parse_uri
 
 
 # NOTE: This module is independent of libspotify and built using the Spotify
@@ -21,46 +21,37 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: Merge some/all of this into WebSession
-def get_images(web_client, uris):
+def get_images(web_session, uris):
     result = {}
-    uri_type_getter = operator.itemgetter('type')
-    uris = sorted((_parse_uri(u) for u in uris), key=uri_type_getter)
-    for uri_type, group in itertools.groupby(uris, uri_type_getter):
+    wl_get_type = lambda x: x.type
+    weblinks = sorted((parse_uri(u) for u in uris), key=wl_get_type)
+    for uri_type, group in itertools.groupby(weblinks, wl_get_type):
         batch = []
-        for uri in group:
-            if uri['key'] in _cache:
-                result[uri['uri']] = _cache[uri['key']]
+        for weblink in group:
+            if weblink.id in _cache:
+                result[weblink.uri] = _cache[weblink.id]
+            elif weblink.type == 'playlist':
+                result[weblink.uri] = _get_playlist_images(web_session, weblink.uri)
             else:
-                batch.append(uri)
+                batch.append(weblink)
                 if len(batch) >= _API_MAX_IDS_PER_REQUEST:
                     result.update(
-                        _process_uris(web_client, uri_type, batch))
+                        _process_uris(web_session._client, uri_type, batch))
                     batch = []
-        result.update(_process_uris(web_client, uri_type, batch))
+        result.update(_process_uris(web_session._client, uri_type, batch))
     return result
 
-
-def _parse_uri(uri):
-    parsed_uri = urlparse.urlparse(uri)
-    uri_type, uri_id = None, None
-
-    if parsed_uri.scheme == 'spotify':
-        uri_type, uri_id = parsed_uri.path.split(':')[:2]
-    elif parsed_uri.scheme in ('http', 'https'):
-        if parsed_uri.netloc in ('open.spotify.com', 'play.spotify.com'):
-            uri_type, uri_id = parsed_uri.path.split('/')[1:3]
-
-    if uri_type and uri_type in ('track', 'album', 'artist') and uri_id:
-        return {'uri': uri, 'type': uri_type, 'id': uri_id,
-                'key': (uri_type, uri_id)}
-
-    raise ValueError('Could not parse %r as a Spotify URI' % uri)
-
+def _get_playlist_images(web_session, uri):
+    web_playlist = web_session.get_playlist(uri)
+    logger.info(web_playlist)
+    if not web_playlist or 'images' not in web_playlist:
+        return []
+    return [_translate_image(image) for image in web_playlist['images']]
 
 def _process_uris(web_client, uri_type, uris):
     result = {}
-    ids = [u['id'] for u in uris]
-    ids_to_uris = {u['id']: u for u in uris}
+    ids = [u.id for u in uris]
+    ids_to_uris = {u.id: u for u in uris}
 
     if not uris:
         return result
@@ -70,17 +61,17 @@ def _process_uris(web_client, uri_type, uris):
         if not item:
             continue
         uri = ids_to_uris[item['id']]
-        if uri['key'] not in _cache:
+        if uri.id not in _cache:
             if uri_type == 'track':
-                album_key = _parse_uri(item['album']['uri'])['key']
+                album_key = parse_uri(item['album']['uri']).id
                 if album_key not in _cache:
                     _cache[album_key] = tuple(
                         _translate_image(i) for i in item['album']['images'])
-                _cache[uri['key']] = _cache[album_key]
+                _cache[uri.id] = _cache[album_key]
             else:
-                _cache[uri['key']] = tuple(
+                _cache[uri.id] = tuple(
                     _translate_image(i) for i in item['images'])
-        result[uri['uri']] = _cache[uri['key']]
+        result[uri.uri] = _cache[uri.id]
 
     return result
 

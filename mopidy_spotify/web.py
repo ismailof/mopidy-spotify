@@ -346,7 +346,7 @@ class WebResponseCache(dict):
 
 TRACK_FIELDS = ['type', 'uri', 'name', 'duration_ms', 'disc_number', 'track_number', 'artists', 'album', 'is_playable', 'linked_from.uri']
 TRACKS_PAGE = ','.join(['next', 'items(track(' + ','.join(TRACK_FIELDS) + '))'])
-PLAYLIST_FIELDS = ','.join(['name', 'owner.id', 'type', 'uri', 'tracks(%s)' % TRACKS_PAGE])
+PLAYLIST_FIELDS = ','.join(['name', 'owner.id', 'type', 'uri', 'images', 'tracks(%s)' % TRACKS_PAGE])
 
 
 class WebSession(object):
@@ -443,15 +443,15 @@ def parse_uri(uri):
     # Strip out empty parts to ensure we are strict about URI parsing.
     parts = [p for p in parts if p.strip()]
 
-    if len(parts) == 2 and parts[0] in ('track', 'album', 'artist'):
+    if len(parts) == 2 and parts[0] in ('track', 'album', 'artist', 'playlist'):
         return WebLink(uri, parts[0],  parts[1], None)
     elif len(parts) == 3 and parts[0] == 'user' and parts[2] == 'starred':
         if parsed_uri.scheme == 'spotify':
-            return WebLink(uri, LINK_TYPE_PLAYLIST,  None, parts[1])
+            return WebLink(uri, LINK_TYPE_PLAYLIST, None, parts[1])
     elif len(parts) == 3 and parts[0] == 'playlist':
-        return WebLink(uri, LINK_TYPE_PLAYLIST,  parts[2], parts[1])
+        return WebLink(uri, LINK_TYPE_PLAYLIST, parts[2], parts[1])
     elif len(parts) == 4 and parts[0] == 'user' and parts[2] == 'playlist':
-        return WebLink(uri, LINK_TYPE_PLAYLIST,  parts[3], parts[1])
+        return WebLink(uri, LINK_TYPE_PLAYLIST, parts[3], parts[1])
 
     raise ValueError('Could not parse %r as a Spotify URI' % uri)
 
