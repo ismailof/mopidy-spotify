@@ -26,7 +26,7 @@ class SpotifyLibraryProvider(backend.LibraryProvider):
             self._backend._web_session._client, field, query)
 
     def get_images(self, uris):
-        return images.get_images(self._backend._web_session,_client, uris)
+        return images.get_images(self._backend._web_session, uris)
 
     def lookup(self, uri):
         return lookup.lookup(
